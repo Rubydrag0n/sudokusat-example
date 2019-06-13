@@ -13,7 +13,7 @@ class MySudokuSolver(ExecutableTool):
     name = "My Sudoku Solver"
 
     # TODO: change this to your solver executable
-    path = os.path.join(DIR, "my_solver.sh")
+    path = os.path.join(DIR, "Sudoku")
 
     @classmethod
     def setup(cls):
@@ -21,6 +21,7 @@ class MySudokuSolver(ExecutableTool):
         # # TODO: add setup as needed (compiling etc.)
         # # for example you can use subprocess to execute GNU Make:s
         # subprocess.run(["make"], cwd=DIR)
+        subprocess.run(["make"])
 
     def get_cmdline(self):
         # TODO: change how your solver is executed against a task.
@@ -30,9 +31,8 @@ class MySudokuSolver(ExecutableTool):
         #   in this case this is the `solver` parameter, whose value
         #   is either `riss` or `glucose`.
 
-        # For example to run the solver as ./solver [sat_solver] [task]:
-        solver = self.parameters.get("solver")
-        return [self.path, solver, self.task]
+        solver = self.parameters.get("Sudoku")
+        return [self.path, self.task, solver]
 
     @classmethod
     def is_ready(cls):
