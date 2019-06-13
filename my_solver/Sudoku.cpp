@@ -410,7 +410,7 @@ void Sudoku::simple_solve()
 		if (mVerbose) std::cout << "\rSimple-Solving in iteration " << counter << "... " << std::flush;
 		keep_going = false;
 
-		//if (naked_singles()) keep_going = true;
+		if (naked_singles()) keep_going = true;
 
 		if (simple_solve_columns()) keep_going = true;
 
