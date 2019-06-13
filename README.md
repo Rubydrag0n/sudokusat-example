@@ -1,76 +1,55 @@
 # Sudoku SAT
 
-Please fork this repository and add your own solver implementation accordingly.
-You can run the sample benchmark with the following instruction.
+## Usage
 
-## Benchmarking with [reprobench](https://github.com/rkkautsar/reprobench)
+In /my_solver execute `$ make` to compile the solver.
 
-### Installation
-
-Python 3 is used here. One can use [pyenv](#using-pyenv) to install this Python version.
-
+The resulting Sudoku executable is used as follows:
 ```sh
-# setup a virtualenv
-$ python -m venv env
-$ source env/bin/activate
-(env) $ pip install -r requirements.txt
-# make sure reprobench is installed
-(env) $ reprobench --version
+$ ./Sudoku [input file] [solver]
 ```
 
-### Writing the tool interface
+Tested solvers are currently only clasp. Other solvers theoretically work too, but for example glucose doesn't output the solution on std::out which is currently the only way my solver accepts the answer.
 
-Modify [`my_solver/__init__.py`](my_solver/__init__.py).
-Further instructions is provided in the relevant files.
+## How the encoder works
 
-You can also modify the solver name by renaming the folder.
-If you do this, you have to change the relevant line in [`benchmark.yml`](benchmark.yml).
-It is also possible to add more than one solver to the benchmark, for example to compare with your own alternative algorithms or others' solvers.
+### Reading
 
-By default the benchmark tool will run my_solver/my_solver.sh.
-See details there.
+The encoder first reads in the unsolved Sudoku. The datastructure to store the Sudoku internally is a 3-dimensional matrix, storing  for every cell which numbers are still possible. That way while reading the Sudoku impossible numbers can already be eliminated from other cells.
 
-### Running the benchmark
+### Preprocessing
 
-```sh
-(env) $ reprobench server &             # run the server in background
-(env) $ reprobench bootstrap && reprobench manage local run
-(env) $ fg                              # bring the server back to foreground
-# Stop the server (Ctrl + C)
-^C
-```
+Before actually encoding the Sudoku into CNF, the encoder uses easy strategies to eliminate more possible numbers and find more fixed cells. These are 
 
-### Check output
+* Naked Singles - if only one number is possible in a given cell, that number can be fixed in that cell
+* Hidden Singles - if a number only appears once in a line, column or box, that number can be fixed to that cell
+* Intersection Removal - See http://www.sudokuwiki.org/Intersection_Removal
 
-The benchmark tool generates under "output" a folder for each solver, then a folder for each parameter (SAT solver), and then under sudoku a folder for each benchmark instance.
+These strategies are applied until they don't change anything anymore.
 
-As example we placed:
-output/my_solver.MySudokuSolver/clasp/sudoku/bsp-sudoku1.txt
+### Encoding
 
-Then our tool "my_solver.sh" will alwasy output the example solution given in "bsp-sudoku1.sol" if it detects "bsp-sudoku1.txt" as input instance into the file run.out.
-This file will afterwards be checked by the [validator](sudoku/validate.py).
+When the preprocessing finishes the Sudoku is encoded into CNF. A variation of the extended encoding (encoding definedness and uniqueness clauses for cells/lines/columns/boxes) is used. Since every entry in the previously mentioned matrix corresponds to one literal in the CNF and every entry in the matrix that equals false can't be part of the solution. Thus while encoding those can be omitted, reducing the size of the CNF drastically.
 
-### Analysis
+Furthermore the Commander Encoding is used for all the at-most-once constraints, reducing the size of the CNF again.
 
-```sh
-(env) $ reprobench analyze
-```
+### Solving and Output
 
-Then open the resulting `output/statistics/summary.csv` file.
-Validation result is also available in `output/statistics/verdict.csv`.
+The finished CNF is used as input for the SAT-Solver. The result is read in and then written to a file.
 
-### Re-running the benchmark
+## To Do
 
-For now, you have to move or delete the existing `output/` folder to re-run the benchmark. We're working on making this a better experience.
+* Make the program nicer to use from the commandline, make things like the commander encoding size or whether to use certain parts of the preprocessing changeable through options.
+* Support more solvers
 
----
+## Sources
 
-## Appendix
+Commander Encoding: https://www.cs.cmu.edu/~wklieber/papers/2007_efficient-cnf-encoding-for-selecting-1.pdf
 
-### Using `pyenv`
+Preprocessing Strategies: http://www.sudokuwiki.org/Getting_Started
 
-`pyenv` is a Python version manager to allow one to install and use different python versions across projects.
+Basic and Extended Encoding: https://pdfs.semanticscholar.org/3d74/f5201b30772620015b8e13f4da68ea559dfe.pdf
 
-- Install pyenv, refer to [pyenv-installer](https://github.com/pyenv/pyenv-installer).
-- Install Python 3. For example: `pyenv install 3.7.2`
-- Use the installed Python version: `pyenv global 3.7.2` (or `pyenv local 3.7.2`, if preferred)
+Fixed Cell Encoding: https://www.cs.cmu.edu/~hjain/papers/sudoku-as-SAT.pdf
+
+More ideas: https://easychair.org/publications/open/VF3m
