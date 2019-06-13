@@ -1,3 +1,0 @@
-/home/rubydragon/Programming/sudokusat-example/my_solver/cmake-build-debug/CMakeFiles/rebuild_cache.dir
-/home/rubydragon/Programming/sudokusat-example/my_solver/cmake-build-debug/CMakeFiles/Sudoku.dir
-/home/rubydragon/Programming/sudokusat-example/my_solver/cmake-build-debug/CMakeFiles/edit_cache.dir
