@@ -1,0 +1,15 @@
+Sudoku,Size,CE-Size,No.Atoms,No.Clauses,Seconds
+../instances/experiments/extable9-1.txt,9,3,81,81,0.006
+../instances/experiments/extable9-2.txt,9,3,348,933,0.007
+../instances/experiments/extable9-3.txt,9,3,81,81,0.007
+../instances/experiments/extable9-4.txt,9,3,332,898,0.008
+../instances/experiments/extable9-5.txt,9,3,660,1932,0.01
+../instances/experiments/extable9-6.txt,9,3,81,81,0.006
+../instances/experiments/extable9-7.txt,9,3,81,81,0.008
+../instances/experiments/extable16-1.txt,16,3,2252,6472,0.023
+../instances/experiments/extable16-2.txt,16,3,2309,6739,0.029
+../instances/experiments/extable16-3.txt,16,3,2547,7438,0.03
+../instances/experiments/extable25-1.txt,25,3,7171,20437,2.777
+../instances/experiments/extable25-2.txt,25,3,6114,17293,0.104
+../instances/experiments/extable36-1.txt,36,3,12023,33804,54.367
+../instances/experiments/extable36-2.txt,36,3,11362,31876,20.375

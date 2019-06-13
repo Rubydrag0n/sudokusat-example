@@ -1,0 +1,4 @@
+/home/rubydragon/clion-2019.1.4/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - Unix Makefiles" /home/rubydragon/Programming/sudokusat-example/my_solver
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/rubydragon/Programming/sudokusat-example/my_solver/cmake-build-debug
