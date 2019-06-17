@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${fileDirname}/${fileBasenameNoExtension}",
-            "args": ["../instances/experiments/extable9-5.txt", "clasp"],
+            "args": ["image17.dat", "clasp"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

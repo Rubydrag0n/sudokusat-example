@@ -233,27 +233,7 @@ int get_first_integer(const std::string& str)
 
 Sudoku::Sudoku(std::string path, bool verbose): mPath(std::move(path)), mClauses_output_file("temp_clauses.txt"), mVerbose(verbose)
 {
-	std::ifstream file(mPath);
-
-	if (!file.is_open()) return;
-
-	std::string content;
-
-	std::getline(file, content);		//first line is experiment: name
-	std::getline(file, content);		//second line is number of tasks: n
-	std::getline(file, content);		//third line is task: m
-	std::getline(file, content);		//fourth line is puzzle size: sxs
-
-	const auto pos = content.find('x');
-	content.erase(pos);					//delete part after the x so only one integer can be found
-
-	mSize = get_first_integer(content);
-
-	mN = int(std::sqrt(mSize));
-
-	mExtra_atom_number = -1;			//initialize to invalid first, is initialized when requested
-
-	file.close();
+	this->init_size();
 
 	mLut.reserve(mSize * mSize * mSize + 1);
 	mLut.resize(mSize * mSize * mSize + 1, 0);
@@ -301,6 +281,42 @@ Sudoku::~Sudoku()
 	delete[] this->mFixed_cell;
 }
 
+void Sudoku::init_size()
+{
+	std::ifstream file(mPath);
+
+	if (!file.is_open()) return;
+
+	std::string content;
+
+	//read first header line to check format
+	std::getline(file, content);
+	if (!content.rfind("experiment:", 0)) {
+		//standard test sudokus, continue to read rest of header lines
+		for (auto i = 0; i < HEADER_LINES - 1; ++i) {
+			std::getline(file, content);
+		}
+
+		const auto pos = content.find('x');
+		content.erase(pos);					//delete part after the x so only one integer can be found
+
+		mSize = get_first_integer(content);
+
+	} else {
+		//format from sudoku reader -> only two header lines
+		std::getline(file, content);
+
+		//this can only be a 3-Sudoku, the reader only reads 3-Sudokus
+		mSize = 9;
+	}
+
+	mN = int(std::sqrt(mSize));
+
+	mExtra_atom_number = -1;			//initialize to invalid first, is initialized when requested
+
+	file.close();
+}
+
 void Sudoku::init_matrix()
 {
 	if (mVerbose) std::cout << "Initializing matrix... " << std::flush;
@@ -328,8 +344,15 @@ void Sudoku::read_sudoku()
 	std::ifstream file(mPath);
 	std::string content;
 
-	//read header lines 
-	for (auto i = 0; i < HEADER_LINES; ++i) {
+	//read first header line to check format
+	std::getline(file, content);
+	if (!content.rfind("experiment:", 0)) {
+		//standard test sudokus, continue to read rest of header lines
+		for (auto i = 0; i < HEADER_LINES - 1; ++i) {
+			std::getline(file, content);
+		}
+	} else {
+		//format from sudoku reader -> only two header lines
 		std::getline(file, content);
 	}
 
@@ -354,7 +377,8 @@ void Sudoku::read_sudoku()
 			{										//otherwise read number and fill field
 				int field_number;
 				std::stringstream(number) >> field_number;
-				this->set_field(x, y, field_number - 1);
+				if (field_number)					//a number may be 0 if there's actually no number there (different input format)
+					this->set_field(x, y, field_number - 1);
 			}
 		}
 	}
