@@ -10,6 +10,7 @@ public:
 	Sudoku(const std::string& solution_path, const std::string& lut_path);
 	~Sudoku();
 
+	void init_size();
 	void init_matrix();
 	void read_sudoku();
 
