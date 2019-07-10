@@ -6,7 +6,7 @@
 class Sudoku
 {
 public:
-	explicit Sudoku(std::string path, bool verbose);
+	explicit Sudoku(std::string path, bool verbose, int size = 0);
 	Sudoku(const std::string& solution_path, const std::string& lut_path);
 	~Sudoku();
 
@@ -123,4 +123,4 @@ private:
 };
 
 void benchmark_sudokus(std::string path, std::string solver, std::string output_path);
-void solve_sudoku(std::string path, std::string solver, std::string outputfile = "", bool verbose = false);
+void solve_sudoku(std::string path, std::string solver, std::string outputfile = "", bool verbose = false, int override_size = 0);

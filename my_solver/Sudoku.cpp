@@ -27,7 +27,9 @@ int main(const int argc, char** argv)
 {
 	auto start = std::chrono::steady_clock::now();
 
-    std::cout << "Sudoku Solver by Anton Reinhard!" << std::endl;
+	auto use_standard_size = false;
+
+    //std::cout << "Sudoku Solver by Anton Reinhard!" << std::endl;
 
 	if (argc == 1)
 	{
@@ -35,20 +37,32 @@ int main(const int argc, char** argv)
 		return 1;
 	}
 
+	//collect commandline options
+	std::vector<char> options;
+	for (auto i = 0; i < argc; ++i) {
+		if (argv[i][0] == '-') {
+			options.push_back(argv[i][1]);
+		}
+	}
+
+	for (auto option : options) {
+		if (option == 'n') {
+			use_standard_size = true;
+		}
+	}
+
 	if (argv[1][0] != '-') {
 
 		std::string path = argv[1];
 		std::string solver = argv[2];
 
-		solve_sudoku(path, solver, "", true);
+		if (use_standard_size)
+			solve_sudoku(path, solver, "", false, 3);
+		else
+			solve_sudoku(path, solver, "", true, 0);
 
-	} else if (argv[1][1] == 'r')
-	{
-		std::cout << "Reading solution at \"" << argv[2] << "\"... " << std::endl;
-
-		Sudoku sudoku(argv[2], argv[3]);
-
-	} else if (argv[1][1] == 'b') {	//-b
+	} 
+	else if (argv[1][1] == 'b') {	//-b
 		//benchmark everything found in the folder given
 
 		if (argc <= 4) 
@@ -68,7 +82,7 @@ int main(const int argc, char** argv)
 
 	auto diff = end - start;
 
-	std::cout << "Execution took " << std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() / 1000. << " seconds" << std::endl;
+	//std::cout << "Execution took " << std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() / 1000. << " seconds" << std::endl;
 
 	return 0;
 }
@@ -113,7 +127,7 @@ void benchmark_sudokus(std::string path, std::string solver, std::string output_
 
 }
 
-void solve_sudoku(std::string path, std::string solver, std::string outputfile, bool verbose)
+void solve_sudoku(std::string path, std::string solver, std::string outputfile, bool verbose, int override_size)
 {
 	//record time taken
 	auto sudoku_start = std::chrono::steady_clock::now();
@@ -121,7 +135,7 @@ void solve_sudoku(std::string path, std::string solver, std::string outputfile, 
 
 	if (verbose) std::cout << "Solving Sudoku at \"" << path << "\"" << std::endl;
 
-	Sudoku sudoku(path, verbose);
+	Sudoku sudoku(path, verbose, override_size);
 
 	const auto size = sudoku.get_size();
 
@@ -155,7 +169,7 @@ void solve_sudoku(std::string path, std::string solver, std::string outputfile, 
 	if (verbose) std::cout << "Simple Solve found " << known_numbers_after - known_numbers_before << " new numbers." << std::endl;
 	if (verbose) std::cout << "Now " << known_numbers_after << " of " << size * size << " cells are filled." << std::endl;
 
-	if (size <= MAX_PRINT_SIZE)
+	if (size <= MAX_PRINT_SIZE && verbose)
 		sudoku.print();
 
 
@@ -190,6 +204,9 @@ void solve_sudoku(std::string path, std::string solver, std::string outputfile, 
 	sudoku.read_solution("solution.txt");
 
 	sudoku.print_out(path + "_solved.txt");
+
+	//if (!verbose && sudoku.get_size() == 9) 
+		sudoku.print();
 
 	auto sudoku_end = std::chrono::steady_clock::now();
 	auto sudoku_time = sudoku_end - sudoku_start;
@@ -231,9 +248,16 @@ int get_first_integer(const std::string& str)
 	return -1;
 }
 
-Sudoku::Sudoku(std::string path, bool verbose): mPath(std::move(path)), mClauses_output_file("temp_clauses.txt"), mVerbose(verbose)
+Sudoku::Sudoku(std::string path, bool verbose, int size): mPath(std::move(path)), mClauses_output_file("temp_clauses.txt"), mVerbose(verbose)
 {
-	this->init_size();
+	if (size <= 0) {
+		this->init_size();
+	} else {
+		mN = size;
+		mSize = mN*mN;
+	}
+
+	mExtra_atom_number = -1;			//initialize to invalid first, is initialized when requested
 
 	mLut.reserve(mSize * mSize * mSize + 1);
 	mLut.resize(mSize * mSize * mSize + 1, 0);
@@ -312,8 +336,6 @@ void Sudoku::init_size()
 
 	mN = int(std::sqrt(mSize));
 
-	mExtra_atom_number = -1;			//initialize to invalid first, is initialized when requested
-
 	file.close();
 }
 
@@ -346,12 +368,16 @@ void Sudoku::read_sudoku()
 
 	//read first header line to check format
 	std::getline(file, content);
-	if (!content.rfind("experiment:", 0)) {
+	if (content.rfind("experiment:", 0) == 0) {
 		//standard test sudokus, continue to read rest of header lines
 		for (auto i = 0; i < HEADER_LINES - 1; ++i) {
 			std::getline(file, content);
 		}
-	} else {
+	} 
+	else if (content.rfind("+", 0) == 0) {
+		//only sudoku in the file, this is delimiter line, do nothing
+	}
+	else {
 		//format from sudoku reader -> only two header lines
 		std::getline(file, content);
 	}
@@ -745,10 +771,6 @@ int Sudoku::get_number_at_position(const int x, const int y)
 
 void Sudoku::print()
 {
-	if (!mVerbose) return;
-
-	std::cout << "Current Sudoku: " << std::endl;
-
 	auto solved_fields = 0;
 
 	auto number_length = 0;
@@ -798,7 +820,7 @@ void Sudoku::print()
 		std::cout << "|\n";
 	}
 	std::cout << limit_line << std::endl;
-	std::cout << "Solved fields: " << solved_fields << "/" << mSize * mSize << std::endl;
+	//std::cout << "Solved fields: " << solved_fields << "/" << mSize * mSize << std::endl;
 }
 
 void Sudoku::print_out(std::string path)

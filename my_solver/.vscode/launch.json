@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${fileDirname}/${fileBasenameNoExtension}",
-            "args": ["image17.dat", "clasp"],
+            "args": ["../input.txt", "clasp", "-n"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
