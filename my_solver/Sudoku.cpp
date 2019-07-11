@@ -33,7 +33,7 @@ int main(const int argc, char** argv)
 
 	if (argc == 1)
 	{
-		std::cout << "First argument should be the path to the Sudoku file." << std::endl;
+		std::cout << "Usage: ./Sudoku [command] [options]" << std::endl;
 		return 1;
 	}
 
@@ -203,9 +203,12 @@ void solve_sudoku(std::string path, std::string solver, std::string outputfile, 
 
 	sudoku.read_solution("solution.txt");
 
-	sudoku.print_out(path + "_solved.txt");
+	//make outputpath
+	std::string outputpath = "run.out";
 
-	//if (!verbose && sudoku.get_size() == 9) 
+	//sudoku.print_out(outputpath);
+
+	if (!verbose && sudoku.get_size() == 9) 
 		sudoku.print();
 
 	auto sudoku_end = std::chrono::steady_clock::now();
