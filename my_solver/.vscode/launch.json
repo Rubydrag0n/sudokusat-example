@@ -9,11 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${fileDirname}/${fileBasenameNoExtension}",
-<<<<<<< HEAD
-            "args": ["../input.txt", "clasp", "-n"],
-=======
-            "args": ["image17.dat", "clasp"],
->>>>>>> 831454ec92d8de097aba47eb52188dc17a1a324a
+            "args": ["solve", "../instances/table9-1.txt", "clasp", "-v"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

@@ -27,47 +27,69 @@ int main(const int argc, char** argv)
 {
 	auto start = std::chrono::steady_clock::now();
 
-	auto use_standard_size = false;
-
     //std::cout << "Sudoku Solver by Anton Reinhard!" << std::endl;
 
 	if (argc == 1)
 	{
 		std::cout << "Usage: ./Sudoku [command] [options]" << std::endl;
-		return 1;
+		return 0;
 	}
 
+	
 	//collect commandline options
 	std::vector<char> options;
-	for (auto i = 0; i < argc; ++i) {
+
+	for (auto i = 2; i < argc; ++i) {
 		if (argv[i][0] == '-') {
 			options.push_back(argv[i][1]);
 		}
 	}
 
+	auto use_standard_size = false;
+	auto verbose = false;
+
 	for (auto option : options) {
-		if (option == 'n') {
-			use_standard_size = true;
+		if (option == 'v') {
+			verbose = true;
+		}
+		else {
+			std::cout << "Encountered unknown option \"" << option << "\", ignoring." << std::endl;
 		}
 	}
 
-	if (argv[1][0] != '-') {
+	std::string command = argv[1];
 
-		std::string path = argv[1];
-		std::string solver = argv[2];
+	if (command == "-h" || command == "help")
+	{
+		std::cout << "Usage: ./Sudoku [command] [arguments] [options]" << std::endl;
+		std::cout << "Possible commands are: solve, benchmark" << std::endl;
+	}
+	else if (command == "solve")
+	{
+		if (argc == 2) {
+			std::cout << "Usage: ./Sudoku solve [path] [sat-solver] [options]" << std::endl;
+			return 0;
+		}
+		
+		const auto path_index = 2;
+		const auto solver_index = 3;
 
-		if (use_standard_size)
-			solve_sudoku(path, solver, "", false, 3);
-		else
-			solve_sudoku(path, solver, "", true, 0);
+		const std::string path = argv[path_index];
+		const std::string solver = argv[solver_index];
 
-	} 
-	else if (argv[1][1] == 'b') {	//-b
-		//benchmark everything found in the folder given
+		if (solver != "clasp")
+		{
+			std::cout << "Solvers other than clasp are not supported right now." << std::endl;
+			return 0;
+		}
 
+		solve_sudoku(path, solver, "", verbose);
+	}
+	else if (command == "benchmark")
+	{
 		if (argc <= 4) 
 		{
-			std::cout << "Too few arguments for benchmark! Need -b folder solver outputfile.txt" << std::endl;
+			std::cout << "Too few arguments for benchmark! Usage: ./Sudoku benchmark [folder] [solver] [output file] [options]" << std::endl;
 			return -1;
 		}
 
@@ -77,12 +99,18 @@ int main(const int argc, char** argv)
 
 		benchmark_sudokus(folder, solver, output_file);
 	}
+	else 
+	{
+		std::cout << "Unknown command \"" << command << "\"" << std::endl;
+		std::cout << "Possible commands are: solve, benchmark" << std::endl;
+		return 0;
+	}
 
 	auto end = std::chrono::steady_clock::now();
 
 	auto diff = end - start;
 
-	//std::cout << "Execution took " << std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() / 1000. << " seconds" << std::endl;
+	std::cout << "Execution took " << std::chrono::duration_cast<std::chrono::milliseconds>(diff).count() / 1000. << " seconds" << std::endl;
 
 	return 0;
 }
@@ -127,15 +155,16 @@ void benchmark_sudokus(std::string path, std::string solver, std::string output_
 
 }
 
-void solve_sudoku(std::string path, std::string solver, std::string outputfile, bool verbose, int override_size)
+void solve_sudoku(std::string path, std::string solver, std::string outputfile, bool verbose)
 {
 	//record time taken
 	auto sudoku_start = std::chrono::steady_clock::now();
-
+	std::string cnf_filename = "clauses_out.cnf";
+	std::string solution_filename = "model.txt";
 
 	if (verbose) std::cout << "Solving Sudoku at \"" << path << "\"" << std::endl;
 
-	Sudoku sudoku(path, verbose, override_size);
+	Sudoku sudoku(path, verbose);
 
 	const auto size = sudoku.get_size();
 
@@ -151,11 +180,11 @@ void solve_sudoku(std::string path, std::string solver, std::string outputfile, 
 
 	if (!sudoku.is_solvable())
 	{
-		if (verbose) std::cout << "This Sudoku is unsolvable!" << std::endl;
+		std::cerr << "This Sudoku is unsolvable!" << std::endl;
 		int x, y;
 		sudoku.get_unsolvable_cell(&x, &y);
-		if (verbose) std::cout << "There's no possible number for cell at position " << ++x << ", " << ++y << "." << std::endl;
-		if (verbose) std::cout << "Exiting..." << std::endl;
+		std::cerr << "There's no possible number for cell at position " << ++x << ", " << ++y << "." << std::endl;
+		std::cerr << "Exiting..." << std::endl;
 		return;
 	}
 
@@ -172,10 +201,7 @@ void solve_sudoku(std::string path, std::string solver, std::string outputfile, 
 	if (size <= MAX_PRINT_SIZE && verbose)
 		sudoku.print();
 
-
 	sudoku.create_lut();
-
-	sudoku.write_lut("lookup_table.txt");
 
 	sudoku.generate_all_clauses();
 
@@ -185,13 +211,13 @@ void solve_sudoku(std::string path, std::string solver, std::string outputfile, 
 
 	if (verbose) std::cout << "Using solver " << solver << "..." << std::endl;
 
-	std::string syscall;
-	syscall = solver;
-	syscall += " clauses_out.cnf > solution.txt";
+	std::stringstream syscall;
+	syscall << solver;
+	syscall << " " << cnf_filename << " > " << solution_filename;
 	
-	if (verbose) std::cout << "Executing " << syscall << "..." << std::endl;
+	if (verbose) std::cout << "Executing " << syscall.str() << "..." << std::endl;
 
-	int ret = system(syscall.c_str());
+	int ret = system(syscall.str().c_str());
 	if (ret == -1) {
 		if (verbose) std::cout << "Couldn't execute solver, exiting..." << std::endl;
 		return;
@@ -199,17 +225,9 @@ void solve_sudoku(std::string path, std::string solver, std::string outputfile, 
 
 	if (verbose) std::cout << "Reading solution... " << std::endl;
 
-	sudoku.read_lut("lookup_table.txt");
+	sudoku.read_solution(solution_filename);
 
-	sudoku.read_solution("solution.txt");
-
-	//make outputpath
-	std::string outputpath = "run.out";
-
-	//sudoku.print_out(outputpath);
-
-	if (!verbose && sudoku.get_size() == 9) 
-		sudoku.print();
+	sudoku.print();
 
 	auto sudoku_end = std::chrono::steady_clock::now();
 	auto sudoku_time = sudoku_end - sudoku_start;
@@ -251,18 +269,13 @@ int get_first_integer(const std::string& str)
 	return -1;
 }
 
-Sudoku::Sudoku(std::string path, bool verbose, int size): mPath(std::move(path)), mClauses_output_file("temp_clauses.txt"), mVerbose(verbose)
+Sudoku::Sudoku(std::string path, bool verbose): mPath(std::move(path)), mTemp_filename("temp_clauses.txt"), 
+												mClauses_output_filename("clauses_out.cnf"), mVerbose(verbose)
 {
-	if (size <= 0) {
-		this->init_size();
-	} else {
-		mN = size;
-		mSize = mN*mN;
-	}
+	this->init_size();
 
 	mExtra_atom_number = -1;			//initialize to invalid first, is initialized when requested
 
-	mLut.reserve(mSize * mSize * mSize + 1);
 	mLut.resize(mSize * mSize * mSize + 1, 0);
 
 	if (mVerbose) std::cout << "Sudoku of type " << mSize << "x" << mSize << "." << std::endl;
@@ -1058,6 +1071,12 @@ void Sudoku::generate_all_clauses()
 {
 	if (mVerbose) std::cout << "Generating clauses...\n";
 
+	mClauses_temp_file.open(mTemp_filename);
+	if (!mClauses_temp_file.is_open())
+	{
+		std::cerr << "Couldn't open temporary clause file \"" << mTemp_filename << "\". Exiting..." << std::endl;		
+	}
+
 	auto total_clauses = 0;
 
 	total_clauses += this->add_single_cell_definedness_clauses();
@@ -1071,6 +1090,8 @@ void Sudoku::generate_all_clauses()
 
 	total_clauses += this->add_section_definedness_clauses();
 	total_clauses += this->add_section_uniqueness_clauses();
+
+	mClauses_temp_file.close();
 
 	if (mVerbose) std::cout << "Done!" << std::endl;
 	if (mVerbose) std::cout << "Generated a total of " << total_clauses << " clauses" << std::endl;
@@ -1346,27 +1367,37 @@ int Sudoku::add_section_definedness_clauses()
 void Sudoku::create_lut()
 {
 	if (mVerbose) std::cout << "Creating lookup table... ";
+
+	//first entry is empty, because literals are 1-indexed
+	mRead_lut.push_back(0);
+
 	auto counter = 0;
 	for (auto y = 0; y < mSize; ++y) {
 		for (auto x = 0; x < mSize; ++x) {
 			for (auto n = 0; n < mSize; ++n) {
 				if (mSudoku_matrix[x][y][n])
 				{
+					const int atom_number = get_atom_number(x, y, n);
+
 					//for every atom that's not definitely negative -> entry in the LUT
-					mLut.at(get_atom_number(x, y, n)) = ++counter;
+					mLut.at(atom_number) = ++counter;
+					
+					//now fill the read_lookuptable in reverse
+					mRead_lut.push_back(atom_number);
 				}
 			}
 		}
 	}
 
 	mNumber_of_atoms = counter;
-
+	
 	mExtra_atom_number = mNumber_of_atoms + 1;
 
 	if (mVerbose) std::cout << "Done." << std::endl;
 	if (mVerbose) std::cout << "Created " << counter << " entries in the lookup table." << std::endl;
 }
 
+//currently unneeded
 void Sudoku::read_lut(const std::string& path)
 {
 	if (mVerbose) std::cout << "Reading lookup table... " << std::flush;
@@ -1406,6 +1437,7 @@ void Sudoku::read_lut(const std::string& path)
 	if (mVerbose) std::cout << "Read " << counter << " entries in the lookup table." << std::endl;
 }
 
+//currently unneeded
 void Sudoku::write_lut(const std::string& path) const
 {
 	std::ofstream file;
@@ -1434,23 +1466,29 @@ void Sudoku::write_clause(std::vector<int>* clause)
 {
 	for (auto lit : *clause)
 	{
-		mClauses_output_file << lit << " ";
+		mClauses_temp_file << lit << " ";
 	}
-	mClauses_output_file << "\n";
+	mClauses_temp_file << "\n";
 	++mNumber_of_clauses;
 }
 
 void Sudoku::write_clauses()
 {
-	//write header
-	mClauses_output_file.close();
-	std::ifstream in_file("temp_clauses.txt");
+	//close temp file in case it's still open
+	if (mClauses_temp_file.is_open())
+		mClauses_temp_file.close();
+	std::ifstream in_file(mTemp_filename);
 	
-	std::ofstream output_file("clauses_out.cnf");
+	//write header
+	std::ofstream output_file(mClauses_output_filename);
 	output_file << "p cnf " << mExtra_atom_number - 1 << " " << mNumber_of_clauses << "\n";
 
 	//copy contents of temp file
 	output_file << in_file.rdbuf();
+
+	output_file.close();
+
+	std::remove(mTemp_filename.c_str());
 }
 
 void Sudoku::read_solution(const std::string& path)
@@ -1475,6 +1513,7 @@ void Sudoku::read_solution(const std::string& path)
 			//the lines with the literals that we're looking for
 			while (ss >> lit)
 			{
+				//only need to read positive and relevant literals
 				if (lit > 0 && lit <= mNumber_of_atoms)
 				{
 					int x, y, n;

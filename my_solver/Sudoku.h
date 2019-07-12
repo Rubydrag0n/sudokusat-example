@@ -6,7 +6,7 @@
 class Sudoku
 {
 public:
-	explicit Sudoku(std::string path, bool verbose, int size = 0);
+	explicit Sudoku(std::string path, bool verbose);
 	Sudoku(const std::string& solution_path, const std::string& lut_path);
 	~Sudoku();
 
@@ -97,8 +97,12 @@ private:
 	int mN{};													//the n of the sudoku, 3-sudoku -> 3
 	std::string mPath;											//path to the sudoku
 
-	std::vector<std::vector<int>> mClauses;
-	std::ofstream mClauses_output_file;
+	//temp file for writing clauses initially
+	std::ofstream mClauses_temp_file;
+	std::string mTemp_filename;
+
+	//output file for the finished cnf file
+	std::string mClauses_output_filename;
 
 	int mNumber_of_clauses = 0;
 
@@ -123,4 +127,4 @@ private:
 };
 
 void benchmark_sudokus(std::string path, std::string solver, std::string output_path);
-void solve_sudoku(std::string path, std::string solver, std::string outputfile = "", bool verbose = false, int override_size = 0);
+void solve_sudoku(std::string path, std::string solver, std::string outputfile = "", bool verbose = false);
