@@ -152,7 +152,6 @@ void benchmark_sudokus(std::string path, std::string solver, std::string output_
 			//std::cout << "Done solving Sudoku at " << full_path << std::endl;
 		}
 	} while (n <= 15);
-
 }
 
 void solve_sudoku(std::string path, std::string solver, std::string outputfile, bool verbose)
@@ -217,11 +216,15 @@ void solve_sudoku(std::string path, std::string solver, std::string outputfile, 
 	
 	if (verbose) std::cout << "Executing " << syscall.str() << "..." << std::endl;
 
+	auto time_pre_syscall = std::chrono::steady_clock::now() - sudoku_start;
+
 	int ret = system(syscall.str().c_str());
 	if (ret == -1) {
 		if (verbose) std::cout << "Couldn't execute solver, exiting..." << std::endl;
 		return;
 	}
+
+	auto time_after_syscall_start = std::chrono::steady_clock::now();
 
 	if (verbose) std::cout << "Reading solution... " << std::endl;
 
@@ -231,6 +234,10 @@ void solve_sudoku(std::string path, std::string solver, std::string outputfile, 
 
 	auto sudoku_end = std::chrono::steady_clock::now();
 	auto sudoku_time = sudoku_end - sudoku_start;
+
+	auto time_encoding_total = time_pre_syscall + (sudoku_end - time_after_syscall_start);
+
+	std::cout << "Encoding took " << std::chrono::duration_cast<std::chrono::milliseconds>(time_encoding_total).count() / 1000. << " seconds" << std::endl;
 
 	auto time = std::chrono::duration_cast<std::chrono::milliseconds>(sudoku_time).count() / 1000.;
 
