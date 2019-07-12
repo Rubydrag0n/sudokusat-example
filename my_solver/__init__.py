@@ -31,7 +31,11 @@ class MySudokuSolver(ExecutableTool):
         #   in this case this is the `solver` parameter, whose value
         #   is either `riss` or `glucose`.
 
+<<<<<<< HEAD
         solver = self.parameters.get("solver")
+=======
+        solver = self.parameters.get("Sudoku")
+>>>>>>> 831454ec92d8de097aba47eb52188dc17a1a324a
         return [self.path, self.task, solver]
 
     @classmethod
