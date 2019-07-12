@@ -6,8 +6,12 @@ In /my_solver execute `$ make` to compile the solver.
 
 The resulting Sudoku executable is used as follows:
 ```sh
-$ ./Sudoku [input file] [solver]
+$ ./Sudoku solve [input file] [solver]
 ```
+
+The program only outputs the solved Sudoku and the time taken, unless there's an error. It also produces a cnf file "clauses_out.cnf" which is the input for the sat-solver and a file "model.txt" which is the output of the sat-solver.
+
+You can use option '-v' to get verbose output.
 
 Tested solvers are currently only clasp. Other solvers theoretically work too, but for example glucose doesn't output the solution on std::out which is currently the only way my solver accepts the answer.
 
