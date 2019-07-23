@@ -22,11 +22,13 @@ public:
 
 	//solving functions, they return false if they did nothing and true if they found at least one new number
 	bool naked_singles();
-	bool simple_solve_columns();
-	bool simple_solve_rows();
-	bool simple_solve_section();
+	bool naked_candidates();
+	bool hidden_singles_columns();
+	bool hidden_singles_rows();
+	bool hidden_singles_section();
 	bool pointing_candidates();
 	bool box_line_reduction();
+	bool x_wing();
 
 	//returns number at position, or -1 if not "sure"
 	int get_number_at_position(int x, int y);
@@ -91,8 +93,8 @@ public:
 
 private:
 	
-	bool*** mSudoku_matrix;										//saves which numbers are possible for each field in the sudoku
-	bool** mFixed_cell;
+	std::vector<std::vector<std::vector<bool>>> mSudoku_matrix;	//saves which numbers are possible for each field in the sudoku
+	std::vector<std::vector<bool>> mFixed_cell;
 	int mSize{};												//the size, for a 3-sudoku this will be 9, etc.
 	int mN{};													//the n of the sudoku, 3-sudoku -> 3
 	std::string mPath;											//path to the sudoku
@@ -126,5 +128,14 @@ private:
 	bool mVerbose = false;
 };
 
+struct x_wing_type {
+	int pos1;
+	int pos2;
+	int pos3;
+};
+
 void benchmark_sudokus(std::string path, std::string solver, std::string output_path);
-void solve_sudoku(std::string path, std::string solver, std::string outputfile = "", bool verbose = false);
+void solve_sudoku(std::string path, std::string solver, std::string outputfile = "", bool verbose = false, bool omit_output = false);
+int system_call(std::string command);
+
+void signal_handler(int signum);

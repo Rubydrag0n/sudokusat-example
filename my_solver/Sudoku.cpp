@@ -9,6 +9,11 @@
 #include <sstream>
 #include <complex>
 #include <chrono>
+#include <csignal>
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/wait.h>
 
 const int MAX_PRINT_SIZE = 36;
 const int HEADER_LINES = 4;
@@ -23,9 +28,22 @@ const bool SIMPLE_SOLVING_ENABLED = true;			//toggles whether the encoder tries 
 const bool POINTING_CANDIDATES_ENABLED = true;		//toggles advanced rule "intersetion removal" for the simple solve part
 const bool BOX_LINE_REDUCTION_ENABLED = true;		//toggles advanced rule "box line reduction" for the simple solve part
 
+//disabled since it rarely actually finds anything new
+const bool X_WING_ENABLED = false;					//toggles advanced rule "x_wing" for the simple solve part
+
+pid_t command_pid = -1;
+
 int main(const int argc, char** argv)
 {
 	auto start = std::chrono::steady_clock::now();
+
+	//register signal handler for all possible signals
+	signal(SIGABRT, signal_handler);
+	signal(SIGFPE, signal_handler);
+	signal(SIGILL, signal_handler);
+	signal(SIGINT, signal_handler);
+	signal(SIGSEGV, signal_handler);
+	signal(SIGTERM, signal_handler);
 
     //std::cout << "Sudoku Solver by Anton Reinhard!" << std::endl;
 
@@ -47,10 +65,13 @@ int main(const int argc, char** argv)
 
 	auto use_standard_size = false;
 	auto verbose = false;
+	auto omit_output = false;
 
 	for (auto option : options) {
 		if (option == 'v') {
 			verbose = true;
+		} else if (option == 'd') {
+			omit_output = true;
 		}
 		else {
 			std::cout << "Encountered unknown option \"" << option << "\", ignoring." << std::endl;
@@ -83,7 +104,7 @@ int main(const int argc, char** argv)
 			return 0;
 		}
 
-		solve_sudoku(path, solver, "", verbose);
+		solve_sudoku(path, solver, "", verbose, omit_output);
 	}
 	else if (command == "benchmark")
 	{
@@ -147,14 +168,14 @@ void benchmark_sudokus(std::string path, std::string solver, std::string output_
 		} else {
 			std::cout << "Solving Sudoku at " << full_path << std::endl;
 
-			solve_sudoku(full_path, solver, output_path, false);
+			solve_sudoku(full_path, solver, output_path, false, true);
 
 			//std::cout << "Done solving Sudoku at " << full_path << std::endl;
 		}
 	} while (n <= 15);
 }
 
-void solve_sudoku(std::string path, std::string solver, std::string outputfile, bool verbose)
+void solve_sudoku(std::string path, std::string solver, std::string outputfile, bool verbose, bool omit_output)
 {
 	//record time taken
 	auto sudoku_start = std::chrono::steady_clock::now();
@@ -213,12 +234,13 @@ void solve_sudoku(std::string path, std::string solver, std::string outputfile, 
 	std::stringstream syscall;
 	syscall << solver;
 	syscall << " " << cnf_filename << " > " << solution_filename;
+	//I'm confused about if it's better to search for all models or not
 	
 	if (verbose) std::cout << "Executing " << syscall.str() << "..." << std::endl;
 
 	auto time_pre_syscall = std::chrono::steady_clock::now() - sudoku_start;
 
-	int ret = system(syscall.str().c_str());
+	int ret = system_call(syscall.str());
 	if (ret == -1) {
 		if (verbose) std::cout << "Couldn't execute solver, exiting..." << std::endl;
 		return;
@@ -230,7 +252,8 @@ void solve_sudoku(std::string path, std::string solver, std::string outputfile, 
 
 	sudoku.read_solution(solution_filename);
 
-	sudoku.print();
+	if (!omit_output)
+		sudoku.print();
 
 	auto sudoku_end = std::chrono::steady_clock::now();
 	auto sudoku_time = sudoku_end - sudoku_start;
@@ -248,6 +271,46 @@ void solve_sudoku(std::string path, std::string solver, std::string outputfile, 
 
 		benchmark_file.close();
 	}
+}
+
+//system call using fork to be able to kill the command
+int system_call(std::string command)
+{
+	command_pid = fork();
+
+	if (command_pid < 0)
+	{
+		std::cout << "Failed to fork!" << std::endl;
+		return -1;
+	}
+
+	if (command_pid == 0) 
+	{
+		//child
+		//execute command here
+		system(command.c_str());
+		exit(1);
+	}
+	else
+	{
+		//parent
+		int status;
+		wait(&status);
+	}
+
+	//not executing any command anymore...
+	command_pid = -1;
+	return 1;
+}
+
+void signal_handler(int signum)
+{
+	if (command_pid != -1)
+	{
+		kill(command_pid, signum);
+	}
+
+	exit(signum);
 }
 
 //adapted from https://www.geeksforgeeks.org/extract-integers-string-c/
@@ -313,20 +376,7 @@ Sudoku::Sudoku(const std::string& solution_path, const std::string& lut_path)
 	this->print_out("solved.txt");
 }
 
-Sudoku::~Sudoku()
-{
-	for (auto i = 0; i < mSize; ++i)
-	{
-		for (auto j = 0; j < mSize; ++j)
-		{
-			delete[] this->mSudoku_matrix[i][j];
-		}
-		delete[] this->mSudoku_matrix[i];
-		delete[] this->mFixed_cell[i];
-	}
-	delete[] this->mSudoku_matrix;
-	delete[] this->mFixed_cell;
-}
+Sudoku::~Sudoku() = default;
 
 void Sudoku::init_size()
 {
@@ -367,18 +417,15 @@ void Sudoku::init_matrix()
 	if (mVerbose) std::cout << "Initializing matrix... " << std::flush;
 
 	//initialize the sudoku matrix with all ones
-	this->mSudoku_matrix = new bool**[mSize];
-	this->mFixed_cell = new bool*[mSize];
+	this->mSudoku_matrix.resize(mSize);
+	this->mFixed_cell.resize(mSize);
 	for (auto i = 0; i < mSize; ++i)
 	{
-		this->mSudoku_matrix[i] = new bool*[mSize];
-		this->mFixed_cell[i] = new bool[mSize];
+		this->mSudoku_matrix[i].resize(mSize);
+		this->mFixed_cell[i].resize(mSize, false);
 		for (auto j = 0; j < mSize; ++j)
 		{
-			this->mSudoku_matrix[i][j] = new bool[mSize];
-			this->mFixed_cell[i][j] = false;				//no cells are fixed at the start
-			for (auto k = 0; k < mSize; ++k)
-				this->mSudoku_matrix[i][j][k] = true;
+			this->mSudoku_matrix[i][j].resize(mSize, true);
 		}
 	}
 	if (mVerbose) std::cout << "Done!" << std::endl;
@@ -485,11 +532,13 @@ void Sudoku::simple_solve()
 
 		if (naked_singles()) keep_going = true;
 
-		if (simple_solve_columns()) keep_going = true;
+		if (naked_candidates()) keep_going = true;
 
-		if (simple_solve_rows()) keep_going = true;
+		if (hidden_singles_columns()) keep_going = true;
 
-		if (simple_solve_section()) keep_going = true;
+		if (hidden_singles_rows()) keep_going = true;
+
+		if (hidden_singles_section()) keep_going = true;
 
 		//intersection removal is more expensive, so try the other stuff first
 		if (keep_going) continue;
@@ -497,6 +546,11 @@ void Sudoku::simple_solve()
 		if (POINTING_CANDIDATES_ENABLED && pointing_candidates()) keep_going = true;
 
 		if (BOX_LINE_REDUCTION_ENABLED && box_line_reduction()) keep_going = true;
+
+		//x_wings are very expensive, so try the other stuff first
+		if (keep_going) continue;
+
+		if (X_WING_ENABLED && x_wing()) keep_going = true;
 
 	} while (keep_going);
 
@@ -519,7 +573,79 @@ bool Sudoku::naked_singles()
 	return result;
 }
 
-bool Sudoku::simple_solve_columns()
+bool Sudoku::naked_candidates()
+{
+	auto result = false;
+
+	for (auto x = 0; x < mSize; ++x) {
+		for (auto y = 0; y < mSize; ++y) {
+			//skip already fixed cells
+			if (mFixed_cell[x][y]) continue;
+
+			//copy this cell
+			auto numbers = mSudoku_matrix[x][y];
+
+			auto m = 0;
+			for (auto n = 0; n < mSize; ++n) m += numbers[n];
+
+			std::vector<int> found{x};
+
+			//go through same column to check for cells with exactly same numbers in them
+			for (auto x_i = x+1; x_i < mSize; ++x_i) {
+				if (numbers == mSudoku_matrix[x_i][y]) {
+					found.push_back(x_i);
+				}
+			}
+
+			if (found.size() == m) {
+				//found enough cells -> delete all other occurrences of any numbers in the column
+				for (auto x_i = 0; x_i < mSize; ++x_i) {
+					if (!found.size() || found[0] == x_i) {
+						//ignore this one
+						if (found.size()) found.erase(found.begin());
+					} else {
+						for (auto n_i = 0; n_i < mSize; ++n_i) {
+							if (numbers[n_i]) {
+								if (!result && mSudoku_matrix[x_i][y][n_i]) result = true;
+								mSudoku_matrix[x_i][y][n_i] = false;
+							}
+						}
+					}
+				}
+			}
+
+			found = {y};
+
+			//go through same row to check for cells with exactly same numbers in them
+			for (auto y_i = y+1; y_i < mSize; ++y_i) {
+				if (numbers == mSudoku_matrix[x][y_i]) {
+					found.push_back(y_i);
+				}
+			}
+
+			if (found.size() == m) {
+				//found enough cells -> delete all other occurrences of any numbers in the row
+				for (auto y_i = 0; y_i < mSize; ++y_i) {
+					if (!found.size() || found[0] == y_i) {
+						//ignore this one
+						if (found.size()) found.erase(found.begin());
+					} else {
+						for (auto n_i = 0; n_i < mSize; ++n_i) {
+							if (numbers[n_i]) {
+								if (!result && mSudoku_matrix[x][y_i][n_i]) result = true;
+								mSudoku_matrix[x][y_i][n_i] = false;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return result;
+}
+
+bool Sudoku::hidden_singles_columns()
 {
 	auto result = false;
 	for (auto x = 0; x < mSize; ++x)
@@ -552,7 +678,7 @@ bool Sudoku::simple_solve_columns()
 	return result;
 }
 
-bool Sudoku::simple_solve_rows()
+bool Sudoku::hidden_singles_rows()
 {
 	auto result = false;
 
@@ -586,7 +712,7 @@ bool Sudoku::simple_solve_rows()
 	return result;
 }
 
-bool Sudoku::simple_solve_section()
+bool Sudoku::hidden_singles_section()
 {
 	auto result = false;
 
@@ -767,6 +893,93 @@ bool Sudoku::box_line_reduction()
 	return result;
 }
 
+bool Sudoku::x_wing()
+{
+	auto result = false;
+
+	for (auto n = 0; n < mSize; ++n)	//for all numbers
+	{
+		std::vector<x_wing_type> x_wing_candidates;
+
+		for (auto x = 0; x < mSize; ++x)	//for all the columns
+		{
+			//need to find the same number exactly twice in this column and save the y coordinates of them
+			int n1_y = -1;
+			int n2_y = -1;
+			for (auto y = 0; y < mSize; ++y) {
+				if (mSudoku_matrix[x][y][n]) {
+					if (n1_y == -1) n1_y = y;
+					else if (n2_y == -1) n2_y = y;
+					else { //found too many n
+						n1_y = -1;
+						n2_y = -1;
+						break;
+					}
+				}
+			}
+
+			//check if exactly two n were found
+			if (n1_y != -1 && n2_y != -1) {
+				//check if there already is a x_wing possible
+				for (auto candidate : x_wing_candidates) {
+					if (candidate.pos1 == n1_y && candidate.pos2 == n2_y) {
+						//found x_wing! -> eliminate all n in rows y1 and y2
+						for (auto x_remove = 0; x_remove < mSize; ++x_remove) {
+							if (x_remove == x || x_remove == candidate.pos3) continue;
+							if (!result && mSudoku_matrix[x_remove][n1_y][n]) result = true;	//notice if anything is actually being done
+							if (!result && mSudoku_matrix[x_remove][n2_y][n]) result = true;
+							mSudoku_matrix[x_remove][n1_y][n] = false;
+							mSudoku_matrix[x_remove][n2_y][n] = false;
+						}
+					}
+				}
+
+				x_wing_candidates.push_back({n1_y, n2_y, x});		//save for later;
+			}
+		}
+
+		x_wing_candidates.clear();
+
+		for (auto y = 0; y < mSize; ++y)	//for all the rows
+		{
+			//need to find the same number exactly twice in this row and save the x coordinates of them
+			int n1_x = -1;
+			int n2_x = -1;
+			for (auto x = 0; x < mSize; ++x) {
+				if (mSudoku_matrix[x][y][n]) {
+					if (n1_x == -1) n1_x = x;
+					else if (n2_x == -1) n2_x = x;
+					else { //found too many n
+						n1_x = -1;
+						n2_x = -1;
+						break;
+					}
+				}
+			}
+
+			//check if exactly two n were found
+			if (n1_x != -1 && n2_x != -1) {
+				//check if there already is a x_wing possible
+				for (auto candidate : x_wing_candidates) {
+					if (candidate.pos1 == n1_x && candidate.pos2 == n2_x) {
+						//found x_wing! -> eliminate all n in columns x1 and x2
+						for (auto y_remove = 0; y_remove < mSize; ++y_remove) {
+							if (y_remove == y || y_remove == candidate.pos3) continue;
+							if (!result && mSudoku_matrix[n1_x][y_remove][n]) result = true;	//notice if anything is actually being done
+							if (!result && mSudoku_matrix[n2_x][y_remove][n]) result = true;
+							mSudoku_matrix[n1_x][y_remove][n] = false;
+							mSudoku_matrix[n2_x][y_remove][n] = false;
+						}
+					}
+				}
+
+				x_wing_candidates.push_back({n1_x, n2_x, y});		//save for later;
+			}
+		}
+	}
+
+	return result;
+}
 
 int Sudoku::get_number_at_position(const int x, const int y)
 {
@@ -780,12 +993,9 @@ int Sudoku::get_number_at_position(const int x, const int y)
 			if (result == -1) result = i;
 			else return -1;					//if there are multiple numbers possible here then we're not sure what number is here
 		}
-		if (i == mSize - 1 && result == -1) {
-			if (mSolvable)
-			{
-				mUnsolvable_cell_x = x;
-				mUnsolvable_cell_y = y;
-			}
+		if (i == mSize - 1 && result == -1 && mSolvable) {
+			mUnsolvable_cell_x = x;
+			mUnsolvable_cell_y = y;
 			mSolvable = false;				//this can't happen on a solvable sudoku
 		}
 	}
